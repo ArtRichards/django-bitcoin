@@ -733,6 +733,7 @@ class Wallet(models.Model):
                     changed=(Decimal(-1) * amount), transaction=transaction)
                 balance_changed_confirmed.send(sender=otherWallet,
                     changed=(amount), transaction=transaction)
+            db_transaction.commit()
             return transaction
 
     def send_to_address(self, address, amount, description='', expires_seconds=settings.BITCOIN_OUTGOING_DEFAULT_DELAY_SECONDS):
@@ -800,6 +801,7 @@ class Wallet(models.Model):
                     changed=(Decimal(-1) * amount), transaction=bwt)
                 balance_changed_confirmed.send(sender=self,
                     changed=(Decimal(-1) * amount), transaction=bwt)
+            db_transaction.commit()
             return (bwt, None)
 
     def update_transaction_cache(self,
