@@ -749,60 +749,38 @@ class Wallet(models.Model):
             raise Exception(_("Not a valid bitcoin address") + ":" + address)
         if amount <= 0:
             raise Exception(_("Can't send zero or negative amounts"))
-        # concurrency check
-        with db_transaction.autocommit():
-            db_transaction.enter_transaction_management()
-            db_transaction.commit()
-            avail = self.total_balance()
-            updated = Wallet.objects.filter(Q(id=self.id)).update(last_balance=avail)
-            if amount > avail:
-                raise Exception(_("Trying to send too much"))
-            new_balance = avail - amount
-            updated = Wallet.objects.filter(Q(id=self.id) & Q(transaction_counter=self.transaction_counter) &
-                Q(last_balance=avail) )\
-              .update(last_balance=new_balance, transaction_counter=self.transaction_counter+1)
-            if not updated:
-                print "address transaction concurrency:", new_balance, avail, self.transaction_counter, self.last_balance, self.total_balance()
-                raise Exception(_("Concurrency error with transactions. Please try again."))
-            # concurrency check end
-            outgoing_transaction = OutgoingTransaction.objects.create(amount=amount, to_bitcoinaddress=address,
-                expires_at=datetime.datetime.now()+datetime.timedelta(seconds=expires_seconds))
-            bwt = WalletTransaction.objects.create(
-                amount=amount,
-                from_wallet=self,
-                to_bitcoinaddress=address,
-                outgoing_transaction=outgoing_transaction,
-                description=description)
-            process_outgoing_transactions.apply_async((), countdown=(expires_seconds+1))
-            # try:
-            #     result = bitcoind.send(address, amount)
-            # except jsonrpc.JSONRPCException:
-            #     bwt.delete()
-            #     updated2 = Wallet.objects.filter(Q(id=self.id) & Q(last_balance=new_balance)).update(last_balance=avail)
-            #     raise
-            self.transaction_counter = self.transaction_counter+1
-            self.last_balance = new_balance
 
-            # check if a transaction fee exists, and deduct it from the wallet
-            # TODO: because fee can't be known beforehand, can result in negative wallet balance.
-            # currently isn't much of a issue, but might be in the future, depending of the application
-            # transaction = bitcoind.gettransaction(result)
-            # fee_transaction = None
-            # total_amount = amount
-            # if Decimal(transaction['fee']) < Decimal(0):
-            #     fee_transaction = WalletTransaction.objects.create(
-            #         amount=Decimal(transaction['fee']) * Decimal(-1),
-            #         from_wallet=self)
-            #     total_amount += fee_transaction.amount
-            #     updated = Wallet.objects.filter(Q(id=self.id))\
-            #         .update(last_balance=new_balance-fee_transaction.amount)
-            if settings.BITCOIN_TRANSACTION_SIGNALING:
-                balance_changed.send(sender=self,
-                    changed=(Decimal(-1) * amount), transaction=bwt)
-                balance_changed_confirmed.send(sender=self,
-                    changed=(Decimal(-1) * amount), transaction=bwt)
-            db_transaction.commit()
-            return (bwt, None)
+        avail = self.total_balance()
+        updated = Wallet.objects.filter(Q(id=self.id)).update(last_balance=avail)
+        if amount > avail:
+            raise Exception(_("Trying to send too much"))
+        new_balance = avail - amount
+        updated = Wallet.objects.filter(Q(id=self.id) & Q(transaction_counter=self.transaction_counter) &
+            Q(last_balance=avail) )\
+          .update(last_balance=new_balance, transaction_counter=self.transaction_counter+1)
+        if not updated:
+            print "address transaction concurrency:", new_balance, avail, self.transaction_counter, self.last_balance, self.total_balance()
+            raise Exception(_("Concurrency error with transactions. Please try again."))
+
+        outgoing_transaction = OutgoingTransaction.objects.create(amount=amount, to_bitcoinaddress=address,
+            expires_at=datetime.datetime.now()+datetime.timedelta(seconds=expires_seconds))
+        bwt = WalletTransaction.objects.create(
+            amount=amount,
+            from_wallet=self,
+            to_bitcoinaddress=address,
+            outgoing_transaction=outgoing_transaction,
+            description=description)
+        process_outgoing_transactions.apply_async((), countdown=(expires_seconds+1))
+
+        self.transaction_counter = self.transaction_counter+1
+        self.last_balance = new_balance
+
+        if settings.BITCOIN_TRANSACTION_SIGNALING:
+            balance_changed.send(sender=self,
+                changed=(Decimal(-1) * amount), transaction=bwt)
+            balance_changed_confirmed.send(sender=self,
+                changed=(Decimal(-1) * amount), transaction=bwt)
+        return (bwt, None)
 
     def update_transaction_cache(self,
                                  mincf=settings.BITCOIN_MINIMUM_CONFIRMATIONS):
