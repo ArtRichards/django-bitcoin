@@ -348,7 +348,7 @@ class BitcoinAddress(models.Model):
                             least_received=self.least_received_confirmed)
                     if self.migrated_to_transactions:
                         wt = WalletTransaction.objects.create(to_wallet=self.wallet, amount=deposit_tx.amount, description=self.address,
-                            deposit_address=self)
+                            deposit_address=self, deposit_transaction=deposit_tx)
                         deposit_tx.transaction = wt
                         DepositTransaction.objects.select_for_update().filter(id=deposit_tx.id).update(transaction=wt)
                     self.wallet.update_last_balance(deposit_tx.amount)
