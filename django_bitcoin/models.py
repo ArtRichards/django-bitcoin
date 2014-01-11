@@ -242,8 +242,7 @@ def process_outgoing_transactions():
                             to_wallet=fw,
                             description="fee")
                         i += 1
-                else:
-                    raise Exception("Updated amount not matchinf transaction amount!")
+
             for wid in update_wallets:
                 update_wallet_balance.delay(wid)
     # elif OutgoingTransaction.objects.filter(executed_at=None).count()>0:
