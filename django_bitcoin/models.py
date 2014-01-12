@@ -225,6 +225,7 @@ def process_outgoing_transactions():
                     raise
                 OutgoingTransaction.objects.filter(id__in=ots_ids).update(txid=result)
                 transaction = bitcoind.gettransaction(result)
+
                 if Decimal(transaction['fee']) < Decimal(0):
                     fw = fee_wallet()
                     fee_amount = Decimal(transaction['fee']) * Decimal(-1)
@@ -232,16 +233,34 @@ def process_outgoing_transactions():
                             amount=fee_amount,
                             from_wallet=fw,
                             to_wallet=None)
-                    i = 1
-                    for ot_id in ots_ids:
-                        wt = WalletTransaction.objects.get(outgoing_transaction__id=ot_id)
-                        update_wallets.append(wt.from_wallet_id)
-                        fee_transaction = WalletTransaction.objects.create(
-                            amount=(fee_amount / Decimal(i)).quantize(Decimal("0.00000001")),
-                            from_wallet_id=wt.from_wallet_id,
-                            to_wallet=fw,
-                            description="fee")
-                        i += 1
+
+                    # calculate fair fee
+                    wallet = None
+                    i = 0
+                    share = (fee_amount / len(ots_ids)).quantize(Decimal("0.00000001"))
+                    wallet_transacions = WalletTransaction.objects.filter(outgoing_transaction__id__in=ots_ids).order_by('from_wallet')
+                    for wt in wallet_transacions:
+                        if (wt.from_wallet != wallet and wallet):
+                            update_wallets.append(wallet.id)
+                            fee_transaction = WalletTransaction.objects.create(
+                                amount=(share * i).quantize(Decimal("0.00000001")),
+                                from_wallet_id=wallet.id,
+                                to_wallet=fw,
+                                description="fee")
+                            i = 1
+                            wallet = wt.from_wallet
+                        else:
+                            i += 1
+                            wallet = wt.from_wallet
+
+                    else:
+                        if wallet:
+                            update_wallets.append(wallet.id)
+                            fee_transaction = WalletTransaction.objects.create(
+                                amount=(share * i).quantize(Decimal("0.00000001")),
+                                from_wallet_id=wallet.id,
+                                to_wallet=fw,
+                                description="fee")
 
             for wid in update_wallets:
                 update_wallet_balance.delay(wid)
