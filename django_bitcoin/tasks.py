@@ -38,15 +38,15 @@ def query_transactions():
     with NonBlockingCacheLock("query_transactions_ongoing"):
         blockcount = bitcoind.bitcoind_api.getblockcount()
         max_query_block = blockcount - settings.BITCOIN_MINIMUM_CONFIRMATIONS - 1
-        if cache.get("queried_block_index"):
-            query_block = min(int(cache.get("queried_block_index")), max_query_block)
-        else:
-            query_block = blockcount - 100
+#        if cache.get("queried_block_index"):
+#            query_block = min(int(cache.get("queried_block_index")), max_query_block)
+#        else:
+#            query_block = blockcount - 500
+        query_block = blockcount - 300
         blockhash = bitcoind.bitcoind_api.getblockhash(query_block)
         # print query_block, blockhash
         transactions = bitcoind.bitcoind_api.listsinceblock(blockhash)
-        # print transactions
-        transactions = [tx for tx in transactions["transactions"] if tx["category"]=="receive"]
+        transactions = [tx for tx in transactions["transactions"] if tx["category"] in ("receive", "generate")]
         print transactions
         for tx in transactions:
             ba = BitcoinAddress.objects.filter(address=tx[u'address'])
@@ -76,7 +76,8 @@ def query_transactions():
                 if int(tx['confirmations']) > deposit_tx.confirmations:
                     DepositTransaction.objects.filter(id=deposit_tx.id).update(confirmations=int(tx['confirmations']))
             elif dps.count() == 1:
-                print "already processed", dps[0].txid, dps[0].transaction
+#                print "already processed", dps[0].txid, dps[0].transaction
+                pass
             else:
                 print "FUFFUFUU"
 

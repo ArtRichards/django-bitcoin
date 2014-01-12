@@ -325,10 +325,11 @@ class BitcoinAddress(models.Model):
             print "Already has a transaction!"
             return
         with CacheLock('query_bitcoind'):
-            r = bitcoind.total_received(self.address, minconf=settings.BITCOIN_MINIMUM_CONFIRMATIONS)
-            received_amount = r - self.least_received_confirmed
+#            r = bitcoind.total_received(self.address, minconf=settings.BITCOIN_MINIMUM_CONFIRMATIONS)
+#            received_amount = r - self.least_received_confirmed
 
-            if received_amount >= deposit_tx.amount and not deposit_tx.under_execution:
+#            if received_amount >= deposit_tx.amount and not deposit_tx.under_execution:
+            if not deposit_tx.under_execution:
                 if settings.BITCOIN_TRANSACTION_SIGNALING:
                     if self.wallet:
                         balance_changed_confirmed.send(sender=self.wallet,
@@ -337,7 +338,6 @@ class BitcoinAddress(models.Model):
                 updated = BitcoinAddress.objects.select_for_update().filter(id=self.id,
                     least_received_confirmed=self.least_received_confirmed).update(
                     least_received_confirmed=self.least_received_confirmed + deposit_tx.amount)
-
                 if self.wallet and updated:
                     DepositTransaction.objects.select_for_update().filter(id=deposit_tx.id).update(under_execution=True)
                     deposit_tx.under_execution = True
