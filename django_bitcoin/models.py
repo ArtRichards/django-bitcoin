@@ -257,7 +257,7 @@ def process_outgoing_transactions():
                         if wallet:
                             update_wallets.append(wallet.id)
                             fee_transaction = WalletTransaction.objects.create(
-                                amount=(share * i).quantize(Decimal("0.00000001")),
+                                amount=(share * (i - 1) + fee_amount - share * (len(ots_ids) - 1)).quantize(Decimal("0.00000001")),
                                 from_wallet_id=wallet.id,
                                 to_wallet=fw,
                                 description="fee")
