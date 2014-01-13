@@ -375,7 +375,6 @@ class BitcoinAddress(models.Model):
             else:
                 print "This path should not occur, but whatever."
                 # raise Exception("Should be never this way")
-            return r
 
     def query_unconfirmed_deposits(self):
         r = bitcoind.total_received(self.address, minconf=0)
